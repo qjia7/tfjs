@@ -227,11 +227,13 @@ function getSetOutputSnippet(
     if (isVec4) {
       snippet += `
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, vec4 value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
+          getShapeCoords(outShape)});
         setOutput(flatIndex, value);
       }
       void setOutput(${dims.map(d => `int ${d}`).join(', ')}, ivec4 value) {
-        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), outShape);
+        int flatIndex = getFlatIndex(${type}(${dims.join(', ')}), ${
+          getShapeCoords(outShape)});
         setOutput(flatIndex, value);
       }
     `;
