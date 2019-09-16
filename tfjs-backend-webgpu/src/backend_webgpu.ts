@@ -34,6 +34,7 @@ import {CropAndResizeProgram} from './kernels/crop_and_resize_webgpu';
 import {DepthwiseConv2DProgram} from './kernels/depthwise_conv2d_webgpu';
 import {FillProgram} from './kernels/fill_webgpu';
 import {Im2ColProgram} from './kernels/im2col_webgpu';
+import {MatMulPackedV2Program} from './kernels/matmul_packed_v2_webgpu';
 import {MatMulPackedProgram} from './kernels/matmul_packed_webgpu';
 import {MatMulProgram} from './kernels/matmul_webgpu';
 import {MaxPoolWithFilterSizeEqualsOneProgram} from './kernels/maxpool_filtersizeone_webgpu';
@@ -1141,7 +1142,7 @@ export class WebGPUBackend extends KernelBackend {
     const output = engine().makeTensorFromDataId(
         dataId, [batch, outerShapeA, outerShapeB], a.dtype, this);
 
-    let program: MatMulProgram|MatMulPackedProgram;
+    let program: MatMulProgram|MatMulPackedProgram|MatMulPackedV2Program;
     // TODO: We should eventually use the blocked version, but keeping around
     // the old version while we try to understand conditions under which blocked
     // is faster.
@@ -1149,6 +1150,12 @@ export class WebGPUBackend extends KernelBackend {
       program = new MatMulProgram(
           a.shape, output.shape as [number, number, number], transposeA,
           transposeB);
+    } else if (a.shape[2] % 4 === 0 && b.shape[2] % 4 === 0) {
+      // TODO: Currently we need to make sure that a.shape[2] and b.shape[2] are
+      // divided by 4 since we use vec4 to get data. In future, we can remove
+      // this limitation by insert 0 to pack data.
+      program = new MatMulPackedV2Program(
+          a.shape, output.shape as [number, number, number]);
     } else {
       program = new MatMulPackedProgram(
           a.shape, output.shape as [number, number, number],
