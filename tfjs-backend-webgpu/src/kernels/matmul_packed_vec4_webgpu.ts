@@ -124,6 +124,9 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
     const dimBOuter = outputShape[2];
     const bShape = [outputShape[0], dimInner, dimBOuter];
     this.outputShape = outputShape;
+    if (dimBOuter < 64 || dimInner < 64) {
+      this.workGroupSize = [8, 8, 1];
+    }
     this.dispatchLayout = {x: [2], y: [1], z: [0]};
     const vecSize = 4;
     this.dispatch = computeDispatch(

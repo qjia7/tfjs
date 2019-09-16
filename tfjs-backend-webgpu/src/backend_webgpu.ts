@@ -37,6 +37,7 @@ import {DepthwiseConv2DProgram} from './kernels/depthwise_conv2d_webgpu';
 import {FillProgram} from './kernels/fill_webgpu';
 import {FromPixelsProgram} from './kernels/FromPixels_utils/from_pixels_webgpu';
 import {Im2ColProgram} from './kernels/im2col_webgpu';
+import {MatMulPackedVec4With8x8Program} from './kernels/matmul_packed_vec4_8x8_webgpu';
 import {MatMulPackedVec4Program} from './kernels/matmul_packed_vec4_webgpu';
 import {MatMulPackedProgram} from './kernels/matmul_packed_webgpu';
 import {MatMulProgram} from './kernels/matmul_webgpu';
@@ -1156,7 +1157,8 @@ export class WebGPUBackend extends KernelBackend {
     const output = engine().makeTensorFromDataId(
         dataId, [batch, outerShapeA, outerShapeB], a.dtype, this);
 
-    let program: MatMulProgram|MatMulPackedProgram|MatMulPackedVec4Program;
+    let program: MatMulProgram|MatMulPackedProgram|
+        MatMulPackedVec4With8x8Program|MatMulPackedVec4Program;
     // TODO: We should eventually use the blocked version, but keeping around
     // the old version while we try to understand conditions under which blocked
     // is faster.
@@ -1170,9 +1172,13 @@ export class WebGPUBackend extends KernelBackend {
       // TODO: Currently we need to make sure that a.shape[2] and b.shape[2] are
       // divisible by 4 since we use vec4 to get data. In future, we can remove
       // this limitation by insert 0 to pack data.
-      program = new MatMulPackedVec4Program(
-          a.shape, output.shape as [number, number, number],
-          env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number);
+      if (b.shape[2] % 128 === 0 && a.shape[2] % 64 === 0) {
+        program = new MatMulPackedVec4With8x8Program(
+            a.shape, output.shape as [number, number, number]);
+      } else {
+        program = new MatMulPackedVec4Program(
+            a.shape, output.shape as [number, number, number], 4);
+      }
     } else {
       program = new MatMulPackedProgram(
           a.shape, output.shape as [number, number, number],
