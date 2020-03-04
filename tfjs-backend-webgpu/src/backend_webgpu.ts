@@ -44,6 +44,7 @@ import {ResizeBilinearProgram} from './kernels/resize_bilinear_webgpu';
 import {SelectProgram} from './kernels/select_webgpu';
 import {SliceProgram} from './kernels/slice_webgpu';
 import {StridedSliceProgram} from './kernels/strided_slice_webgpu';
+import {MatMulSIMDProgram} from './kernels/subgroup_matmul';
 import {TransposeSharedProgram} from './kernels/transpose_shared_webgpu';
 import {TransposeProgram} from './kernels/transpose_webgpu';
 import * as unary_op from './kernels/unary_op_webgpu';
@@ -1061,7 +1062,7 @@ export class WebGPUBackend extends KernelBackend {
     const output = engine().makeTensorFromDataId(
         dataId, [batch, outerShapeA, outerShapeB], a.dtype, this);
 
-    let program: MatMulProgram|MatMulPackedProgram;
+    let program: MatMulProgram|MatMulPackedProgram|MatMulSIMDProgram;
     // TODO: We should eventually use the blocked version, but keeping around
     // the old version while we try to understand conditions under which blocked
     // is faster.
@@ -1070,7 +1071,7 @@ export class WebGPUBackend extends KernelBackend {
           a.shape, output.shape as [number, number, number], transposeA,
           transposeB);
     } else {
-      program = new MatMulPackedProgram(
+      program = new MatMulSIMDProgram(
           a.shape, output.shape as [number, number, number],
           env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number, transposeA,
           transposeB);

@@ -50,6 +50,7 @@ interface ProgramParams {
   variableNames: string[];
   uniforms?: string;
   userCode: string;
+  extensions?: string[];
 }
 
 export interface InputInfo {
@@ -103,12 +104,20 @@ export function makeShader(
     };
   `);
 
+  const SHADER_VERSION = `#version 450`;
+  const extensionsSnippets: string[] = [];
+  if (program.extensions) {
+    program.extensions.forEach(ex => {
+      extensionsSnippets.push(`#extension ${ex} : require`);
+    });
+  }
+
   const [getOutputCoords, dispatchLayoutRank] =
       generateGetOutputCoords(program.dispatchLayout);
   const getCoords = generateGetCoordsFromFlatIndex(outputData.shape);
   const sources = [
-    SHADER_PREFIX, prefixSnippets.join('\n'), SAMPLING_SNIPPETS,
-    getOutputCoords, getCoords,
+    SHADER_VERSION, extensionsSnippets, SHADER_PREFIX,
+    prefixSnippets.join('\n'), SAMPLING_SNIPPETS, getOutputCoords, getCoords,
     getSetOutputSnippet(outputData.shape.length, outputData.dtype)
   ];
 
@@ -126,8 +135,7 @@ export function makeShader(
   return source;
 }
 
-const SHADER_PREFIX = `#version 450
-
+const SHADER_PREFIX = `
   int idiv(int a, int b, float sign) {
     int res = a / b;
     int mod = a % b;
