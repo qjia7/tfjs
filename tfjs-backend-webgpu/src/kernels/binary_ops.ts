@@ -15,7 +15,9 @@
  * =============================================================================
  */
 
+import {util} from '@tensorflow/tfjs-core';
 import {BinaryOpSharedProgram} from './binary_op_shared_webgpu';
+import {BinaryOpVec4Program} from './binary_op_vec4_webgpu';
 import {BinaryOpProgram} from './binary_op_webgpu';
 
 export const MUL = 'return a * b;';
@@ -51,6 +53,9 @@ export function getBinaryProgram(
       bShape.length === 1 && aShape.length > 1 && bShape[0] < 2048;
   if (useSharedMemoryWithA || useSharedMemoryWithB) {
     return new BinaryOpSharedProgram(op, aShape, bShape, useSharedMemoryWithB);
+  } else if (
+      util.arraysEqual(aShape, bShape) && aShape[aShape.length - 1] % 4 === 0) {
+    return new BinaryOpVec4Program(op, aShape, bShape);
   } else {
     return new BinaryOpProgram(op, aShape, bShape);
   }
