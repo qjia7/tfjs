@@ -39,7 +39,8 @@ import {MatMulProgram} from './kernels/matmul_webgpu';
 import {MaxPoolWithFilterSizeEqualsOneProgram} from './kernels/maxpool_filtersizeone_webgpu';
 import {PadProgram} from './kernels/pad_webgpu';
 import {Pool2DProgram} from './kernels/pool2d_webgpu';
-import {ReduceProgram} from './kernels/reduce_webgpu';
+// import {ReduceProgram} from './kernels/reduce_webgpu';
+import {ReduceNaiveProgram} from './kernels/reduce_naive_webgpu';
 import {ResizeBilinearProgram} from './kernels/resize_bilinear_webgpu';
 import {SelectProgram} from './kernels/select_webgpu';
 import {SliceProgram} from './kernels/slice_webgpu';
@@ -817,7 +818,8 @@ export class WebGPUBackend extends KernelBackend {
     const windowSize = backend_util.computeOptimalWindowSize(inSize);
     const outSize = Math.ceil(inSize / windowSize);
     const reduceInfo = {windowSize, inSize, batchSize, outSize};
-    const program = new ReduceProgram(reduceInfo, reduceType);
+    //  const program = new ReduceProgram(reduceInfo, reduceType);
+    const program = new ReduceNaiveProgram(reduceInfo, reduceType);
     const output = this.makeOutputArray(program.outputShape, dtype);
     return this.compileAndRun(program, [x], output);
   }
