@@ -80,11 +80,7 @@ export class TextureManager {
   // This will remove padding for data downloading from GPU texture.
   public removeTexturePadding(
       textureDataWithPadding: Float32Array, width: number, height: number) {
-    const [widthTex, heightTex] =
-        getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
-    const bytesPerRow = this.getBytesPerRow(widthTex);
-    console.warn(
-        'in remove: widthTex =' + widthTex + ',heightTex = ' + heightTex);
+    const bytesPerRow = this.getBytesPerRow(width);
 
     let textureData = new Float32Array(width * height);
 
@@ -100,10 +96,10 @@ export class TextureManager {
   }
 
   public getBufferSize(width: number, height: number) {
-    const [widthTex, heightTex] =
+    const [, heightTex] =
         getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
 
-    const bytesPerRow = this.getBytesPerRow(widthTex);
+    const bytesPerRow = this.getBytesPerRow(width);
     return bytesPerRow * heightTex;
   }
 
@@ -122,8 +118,7 @@ export class TextureManager {
     */
 
     queue.writeTexture(
-        {texture: texture}, data as ArrayBuffer,
-        {bytesPerRow: bytesPerRow},  // heightTex
+        {texture: texture}, data as ArrayBuffer, {bytesPerRow: bytesPerRow},
         {width: widthTex, height: heightTex, depth: 1});
     return texture;
   }
@@ -132,23 +127,15 @@ export class TextureManager {
   public writeTextureWithCopy(
       device: GPUDevice, texture: GPUTexture, matrixData: BackendValues,
       width: number, height: number) {
-    console.warn(
-        ' write wxh=' + width + ', ' + height +
-        ', getBufferSize = ' + this.getBufferSize(width, height));
     const src = this.device.createBuffer({
       mappedAtCreation: true,
-      size: this.getBufferSize(width, height),  // 640 * 4,  //
+      size: this.getBufferSize(width, height),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST
     });
 
     const [widthTex, heightTex] =
         getPackedMatrixTextureShapeWidthHeight(height, width, this.format);
-
-
-    console.log(
-        'copyBufferToTexture width =' + width + ', height=' + height + '; ' +
-        ' widthTex =' + widthTex + ', heightTex=' + heightTex);
 
     const bytesPerRow = this.getBytesPerRow(widthTex);
 
@@ -172,7 +159,6 @@ export class TextureManager {
       width: number, height: number, texFormat: GPUTextureFormat,
       usages: GPUTextureUsageFlags) {
     const key = getTextureKey(width, height, texFormat, usages);
-    console.log('acquireTexture keytex: ' + key);
     if (!this.freeTextures.has(key)) {
       this.freeTextures.set(key, []);
     }
@@ -235,9 +221,12 @@ export class TextureManager {
   getBytesPerRow(width: number) {
     const kTextureBytesPerRowAlignment = 256;
     const alignment = kTextureBytesPerRowAlignment;
+    // TODO(txture): I understand this should be the width of Texel, not
+    // element. But here the element width used.
     const value = this.kBytesPerTexel * width;
     const bytesPerRow =
         ((value + (alignment - 1)) & ((~(alignment - 1)) >>> 0)) >>> 0;
+
     return bytesPerRow;
   }
 

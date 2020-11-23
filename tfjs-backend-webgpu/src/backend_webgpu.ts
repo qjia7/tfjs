@@ -72,8 +72,6 @@ type BufferInfo = {
   format?: GPUTextureFormat,
   texture?: GPUTexture,
   // Below is texture specific.
-  width?: number,
-  height?: number,
   texShape?: [number, number];
 };
 
@@ -214,8 +212,8 @@ export class WebGPUBackend extends KernelBackend {
     if (info != null && info.bufferInfo.texture != null) {
       // ERROR(texture). Need to div by 4?
       this.textureManager.releaseTexture(
-          info.bufferInfo.texture, info.bufferInfo.width,
-          info.bufferInfo.height, info.bufferInfo.format,
+          info.bufferInfo.texture, info.bufferInfo.texShape[1],
+          info.bufferInfo.texShape[0], info.bufferInfo.format,
           info.bufferInfo.texUsage);
       info.bufferInfo.texture = null;
     }
@@ -226,13 +224,9 @@ export class WebGPUBackend extends KernelBackend {
     const dataId = {};
     const byteSize =
         util.sizeFromShape(shape) * webgpu_util.GPUBytesPerElement(dtype);
-    // Reverse:
     const useVec4 = this.format == 'rgba32float' ? true : false;
-    const [height, width] =
+    const texShape =
         webgpu_texture_util.getTextureShapeFromLogicalShape(shape, useVec4);
-
-    console.warn(
-        ' shape =' + shape + ', width = ' + width + ', height=' + height);
 
     this.tensorMap.set(dataId, {
       dtype,
@@ -243,8 +237,7 @@ export class WebGPUBackend extends KernelBackend {
         texUsage: DEFAULT_GPUTEXTURE_USAGE,
         format: this.format,
         // TODO(texture): this only works when texture is used.
-        width: width,
-        height: height
+        texShape: texShape
       }
     });
     return dataId;
@@ -312,25 +305,21 @@ export class WebGPUBackend extends KernelBackend {
       return info.values;
     }
 
-    const width = info.bufferInfo.width;
-    const height = info.bufferInfo.height;
+    const width = info.bufferInfo.texShape[1];
+    const height = info.bufferInfo.texShape[0];
     const bytesPerRow = this.textureManager.getBytesPerRow(width);
     const staging = this.acquireBuffer(
         this.textureManager.getBufferSize(width, height),
         GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
     const encoder = this.device.createCommandEncoder();
-    const [width1, height1] =
+    const [packedWidth, packedHeight] =
         webgpu_texture_util.getPackedMatrixTextureShapeWidthHeight(
             height, width, this.format);
-    console.log(
-        'getTextureData width1 = ' + width1 + ', height1=' + height1 +
-        ', bytesPerRow=' + bytesPerRow);
-    console.log('getTextureData width = ' + width + ', height=' + height);
 
     encoder.copyTextureToBuffer(
         {texture: info.bufferInfo.texture},
         {buffer: staging, bytesPerRow: bytesPerRow},
-        {width: width1, height: height1, depth: 1});
+        {width: packedWidth, height: packedHeight, depth: 1});
     this.commandQueue.push(encoder);
     this.submitQueue();
 
@@ -512,12 +501,13 @@ export class WebGPUBackend extends KernelBackend {
       return;
     }
     info.bufferInfo.texture = this.textureManager.acquireTexture(
-        info.bufferInfo.width, info.bufferInfo.height, this.format, usage);
+        info.bufferInfo.texShape[1], info.bufferInfo.texShape[0], this.format,
+        usage);
     if (info.values) {
       console.warn('Upload: ' + info.values);
       this.textureManager.writeTextureWithCopy(
           this.device, info.bufferInfo.texture, info.values,
-          info.bufferInfo.width, info.bufferInfo.height);
+          info.bufferInfo.texShape[1], info.bufferInfo.texShape[0]);
       info.values = null;
     }
 
@@ -548,13 +538,12 @@ export class WebGPUBackend extends KernelBackend {
       }
       // TODO(texture): move this into texture only path.
       const useVec4 = this.format == 'rgba32float' ? true : false;
-      const [height, width] =
-          webgpu_texture_util.getTextureShapeFromLogicalShape(
-              input.shape, useVec4);
+      const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
+          input.shape, useVec4);
       const shapeInfo: ShapeInfo = {
         dtype: this.tensorMap.get(input.dataId).dtype,
         logicalShape: input.shape,
-        texShape: [width, height],
+        texShape: [texShape[0], texShape[1]],
         isUniform: false,
         isPacked: false,  // output.texData.isPacked,
         flatOffset: null
@@ -574,13 +563,12 @@ export class WebGPUBackend extends KernelBackend {
     if (this.useTexture) {
       this.uploadTextureToGPU(output.dataId);
       const useVec4 = this.format == 'rgba32float' ? true : false;
-      const [height, width] =
-          webgpu_texture_util.getTextureShapeFromLogicalShape(
-              output.shape, useVec4);
+      const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
+          output.shape, useVec4);
       outShapeInfo = {
         dtype: this.tensorMap.get(output.dataId).dtype,
         logicalShape: output.shape,
-        texShape: [width, height],
+        texShape: [texShape[0], texShape[1]],
         isUniform: false,
         isPacked: false,  // output.texData.isPacked,
         flatOffset: null

@@ -40,8 +40,8 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     const size = util.sizeFromShape(this.outputShape);
-    const sizeFit = size % workGroupSizeX === 0;
-    const shapesFit = util.arraysEqual(aShape, bShape) && sizeFit;
+    const sizeFit = false;// size % workGroupSizeX === 0;
+    const shapesFit = false;// util.arraysEqual(aShape, bShape) && sizeFit;
     this.workPerThread = shapesFit || sizeFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
