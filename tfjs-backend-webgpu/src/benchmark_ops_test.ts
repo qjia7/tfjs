@@ -21,7 +21,6 @@ import {test_util} from '@tensorflow/tfjs-core';
 import {describeWebGPU} from './test_util';
 const expectArraysClose = test_util.expectArraysClose;
 
-
 describeWebGPU('webgputexturepad', () => {
   // pass when wpt = 1.
   it('padtexture0d1', async () => {
@@ -1478,11 +1477,32 @@ describeWebGPU('webgputextureadd', () => {
         await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
   });
 
-  it('texture2dadd2x257x9x37', async () => {
+  it('texture4dadd2x257x9x37', async () => {
     const batch = 2;
     const row = 257;
     const col = 9;
     const channel = 37
+    const size_x = batch * row * col;
+    const size_y = channel;
+
+    const firstMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    const firstMatrix = createFloat32Array(size_x, size_y);
+    const secondMatrixSize: [number, number, number, number] =
+        [batch, row, col, channel];
+    let secondMatrix = createFloat32Array(size_x, size_y);
+    let a = tf.tensor4d(firstMatrix, firstMatrixSize);
+    let b = tf.tensor4d(secondMatrix, secondMatrixSize);
+    console.log(await tf.add(a, b).data());
+    compareAddFloat32Array(
+        await tf.add(a, b).data(), firstMatrix, secondMatrix, size_x, size_y);
+  });
+
+  it('texture4dadd257x257x2x5', async () => {
+    const batch = 257;
+    const row = 257;
+    const col = 2;
+    const channel = 3;
     const size_x = batch * row * col;
     const size_y = channel;
 

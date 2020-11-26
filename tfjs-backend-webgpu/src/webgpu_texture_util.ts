@@ -256,3 +256,86 @@ export function getTextureShapeFromLogicalShape(
     return util.sizeToSquarishShape(size);
   }
 }
+
+// TODO(txture): this cal also be done by getTextureShapeFromLogicalShape.
+export function getDispatchLayoutFromLogicalShape(
+    logShape: number[], isPacked = false): {y?: number[], x: number[]} {
+  let maxTexSize = env().getNumber('WEBGL_MAX_TEXTURE_SIZE');
+  if (isPacked) {
+    maxTexSize = maxTexSize * 2;
+
+    // This logic ensures we accurately count the number of packed texels needed
+    // to accommodate the tensor. We can only pack values in the same texel if
+    // they are from adjacent pairs of rows/cols within the same batch. So if a
+    // tensor has 3 rows, we pretend it has 4 rows in order to account for the
+    // fact that the texels containing the third row are half empty.
+    // TODO(texture): temporary comment out this for 4x1 packed mode.
+    /*
+    logShape = logShape.map(
+        (d, i) => i >= logShape.length - 2 ?
+            util.nearestLargerEven(logShape[i]) :
+            logShape[i]);
+     */
+
+    // Packed texture height is at least 2 (the channel height of a single
+    // texel).
+    // TODO(texture).
+    if (logShape.length === 1) {
+      // logShape = [1, logShape[0]];
+    }
+  }
+
+  // If logical shape is 2, we don't squeeze, since we want to match physical.
+  if (logShape.length !== 2) {
+    const squeezeResult = util.squeezeShape(logShape);
+    logShape = squeezeResult.newShape;
+  }
+
+  let size = util.sizeFromShape(logShape);
+  console.log();
+  if (logShape.length <= 1 && size <= maxTexSize) {
+    return {x: [0]};
+  } else if (
+      logShape.length === 2 && logShape[0] <= maxTexSize &&
+      logShape[1] <= maxTexSize) {
+    return {y: [0], x: [1]};
+  } else if (
+      logShape.length === 3 && logShape[0] * logShape[1] <= maxTexSize &&
+      logShape[2] <= maxTexSize) {
+    return {y: [0, 1], x: [2]};
+  } else if (
+      logShape.length === 3 && logShape[0] <= maxTexSize &&
+      logShape[1] * logShape[2] <= maxTexSize) {
+    return {y: [0], x: [1, 2]};
+  } else if (
+      logShape.length === 4 &&
+      logShape[0] * logShape[1] * logShape[2] <= maxTexSize &&
+      logShape[3] <= maxTexSize) {
+    return {y: [0, 1, 2], x: [3]};
+  } else if (
+      logShape.length === 4 && logShape[0] <= maxTexSize &&
+      logShape[1] * logShape[2] * logShape[3] <= maxTexSize) {
+    return {y: [0], x: [1, 2, 3]};
+  } else {
+    if (isPacked) {
+      // For packed textures size equals the number of channels required to
+      // accommodate the texture data. However in order to squarify such that
+      // inner dimensions stay even, we rewrite size to equal the number of
+      // texels. Then in the return statement we rehydrate the squarified
+      // dimensions to channel units.
+      console.error('TODO(texture) not supported!');
+
+      const batchDim = getBatchDim(logShape);
+      let rows = 2, cols = 2;
+      if (logShape.length) {
+        [rows, cols] = getRowsCols(logShape);
+      }
+      size = batchDim * (rows / 2) * (cols / 2);
+      // return util.sizeToSquarishShape(size).map(d => d * 2) as [number,
+      // number];
+    }
+    // return util.sizeToSquarishShape(size);
+    console.error('TODO(texture) not supported!');
+    return {y: [0], x: [1]};
+  }
+}

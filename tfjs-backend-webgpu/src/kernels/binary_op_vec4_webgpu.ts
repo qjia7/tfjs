@@ -17,7 +17,9 @@
 
 import {backend_util, util} from '@tensorflow/tfjs-core';
 
+import {getDispatchLayoutFromLogicalShape} from '../webgpu_texture_util';
 import {computeDispatch, flatDispatchLayout} from '../webgpu_util';
+
 // import {computeDispatch} from '../webgpu_util';
 
 import {WebGPUProgram} from './webgpu_program';
@@ -27,25 +29,38 @@ export class BinaryOpVec4Program implements WebGPUProgram {
   shaderKey: string;
   userCode: string;
   dispatchLayout: {x: number[]};
-  // dispatchLayout: {x: number[], y: number[]};
+  dispatchLayoutTexture: {x: number[], y: number[]};
   dispatch: [number, number, number];
   variableNames = ['A', 'B'];
   workPerThread = 4;
   workGroupSize: [number, number, number];
   isVec4 = true;
+  isTextureRGBA32f = true;
 
   constructor(op: string, aShape: number[], bShape: number[]) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
     const workGroupSizeX = 32;
-    this.workGroupSize = [workGroupSizeX, 1, 1];
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
-    this.dispatchLayout = flatDispatchLayout(this.outputShape);
+    if (this.isTextureRGBA32f == false) {
+      this.workGroupSize = [workGroupSizeX, 1, 1];
+      this.dispatchLayout = flatDispatchLayout(this.outputShape);
+      this.dispatch = computeDispatch(
+          this.dispatchLayout, this.outputShape, this.workGroupSize,
+          [1, this.workPerThread, 1]);
+    } else {
+      this.workGroupSize = [workGroupSizeX, 4, 1];
+      const dispatchLayout2 =
+          getDispatchLayoutFromLogicalShape(this.outputShape, true);
+      this.dispatchLayoutTexture = {x: dispatchLayout2.x, y: dispatchLayout2.y};
+      this.dispatch = computeDispatch(
+          this.dispatchLayoutTexture, this.outputShape, this.workGroupSize);
+    }
     const size = util.sizeFromShape(this.outputShape) / this.workPerThread;
     const fitShape = false;  // = size % workGroupSizeX === 0;
 
-    this.dispatch = computeDispatch(
-        this.dispatchLayout, this.outputShape, this.workGroupSize,
-        [1, this.workPerThread, 1]);
+    console.log(
+        ' this.outputShape =' + this.outputShape + ', this.dispatch =' +
+        this.dispatch + ', this.dispatchLayout=' + this.dispatchLayout);
 
     if (fitShape) {
       this.userCode = `
