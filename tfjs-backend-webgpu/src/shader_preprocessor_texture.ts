@@ -153,6 +153,7 @@ export function makeShader(
     // getSetOutputSnippet(outputData.logicalShape, outputData.dtype)
   ];
   let packedMode = false;
+
   if (glslFormat == 'rgba32f') {
     packedMode = true;
     sources.push(SAMPLE_1D_SNIPPET);
@@ -160,7 +161,6 @@ export function makeShader(
     sources.push(SAMPLE_3D_SNIPPET);
     sources.push(getPackedSetOutputSnippet(
         outputData.logicalShape, outputData.texShape, outputData.dtype));
-
   } else {
     packedMode = false;
     sources.push(SHADER_PREFIX_R32F);
@@ -205,7 +205,7 @@ const SHADER_PREFIX = `#version 450
   }
 
   bool coordsInBounds(ivec2 coord, ivec2 shape) {
-    return all(greaterThanEqual(coord, ivec2(0))) && 
+    return all(greaterThanEqual(coord, ivec2(0))) &&
         all(lessThan(coord, shape));
   }
 `;
@@ -405,10 +405,9 @@ export function getPackedSetOutputSnippet(
     outShape: number[], texShape: [number, number],
     outBufferType: DataType): string {
   const outRank = outShape.length;
-  if (outRank <= 1)
-    // console.error('<=1D is not supported in getPackedSetOutputSnippet!');
+  if (outRank <= 1) {
     return setPackedSampler1D(outShape, texShape);
-  if (outRank == 2) {
+  } else if (outRank == 2) {
     return setPackedSampler2D(outShape, texShape);
   } else if (outRank == 3) {
     return setPackedSampler3D(outShape, texShape);
@@ -840,7 +839,7 @@ export function getSampler2D(inputInfo: InputInfo): string {
   if (texShape != null && util.arraysEqual(shape, texShape)) {
     return `
       float ${funcName}(int row, int col) {
-        return imageLoad(${texName}, ivec2(col,row)).r; 
+        return imageLoad(${texName}, ivec2(col,row)).r;
       }
     `;
   }
@@ -861,7 +860,7 @@ export function getSampler2D(inputInfo: InputInfo): string {
 
   return `
     float ${funcName}(int row, int col) {
-      return imageLoad(${texName}, ivec2(col,row)).r; 
+      return imageLoad(${texName}, ivec2(col,row)).r;
     }
   `;
 }
@@ -877,6 +876,7 @@ function getPackedSampler2D(inputInfo: InputInfo): string {
   console.log(
       'texName = ' + texName + ', getPackedSampler2D shape=' + shape +
       ', texShape =' + texShape);
+  // TODO(texture): below path is useful. But how does it impact perf?
   /*
   if (texShape != null && util.arraysEqual(shape, texShape)) {
         console.warn("TODO(texture), not tested!");
@@ -1159,20 +1159,41 @@ function setPackedSampler2D(
   `;
 }
 
-// From getPackedSampler3D
-function setPackedSampler3D(
+export function setPackedSampler3D(
     shape: number[], texShape: [number, number]): string {
   const packedTexShape = [
     Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
     Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
+  // TODO(texture): Squeeze code:
+  /*
+  if (shape[0] === 1) {
+    console.warn("TODO(texture): this may fail add!");
+    // const squeezedShape = shape.slice(1);
+    const keptDims = [1, 2];
+    // const newInputInfo = squeezeInputInfo(inputInfo, squeezedShape);
+    const params = ['b', 'row', 'col'];
+    return `
+      // $getPackedSetOutputSnippet(squeezedShape, texShape, outBufferType)
+      void setOutput2(int row, int col, vec4 value) {
+        // ivec2 uv = packedUVfrom2D(4, 16, 4, row, col);
+        // imageStore(result, ivec2(uv.x,uv.y), value);
+        imageStore(result, ivec2(col, row), value);
+      }
+
+      void setOutput(int b, int row, int col, vec4 value) {
+        setOutput2(${getSqueezedParams(params, keptDims)}, value);
+      }
+    `;
+  }
+  */
+  // TODO(texture): Squeeze end.
 
   const texNumR = packedTexShape[0];
   const texNumC = packedTexShape[1];
 
   const valuesPerRow = Math.ceil(shape[2] / PACKED_RGBA_WIDTH);
   const texelsInBatch = valuesPerRow * Math.ceil(shape[1] / PACKED_RGBA_HEIGHT);
-
 
   return `
     void setOutput(vec4 value) {
@@ -1189,6 +1210,7 @@ function setPackedSampler3D(
       valuesPerRow}, b, row, col);
       imageStore(result, ivec2(uv.x,uv.y), value);
     }
+
   `;
 }
 
@@ -1225,7 +1247,6 @@ export function setPackedSamplerND(
     void setOutput(vec4 value) {
       ivec4 coords = getOutputCoords();
 	    setOutput(coords[0],coords[1],coords[2],coords[3], value);
-      // imageStore(result, ivec2(col, row), value);
     }
   `;
 }
@@ -1420,7 +1441,6 @@ function getOutputPackedNDCoords(
     Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
   // 4D NHWC:[batch, height, width, channels]
-  console.log('wgs: shape =' + shape);
   const texelsInLogicalRow =
       Math.ceil(shape[shape.length - 1] / PACKED_RGBA_WIDTH);
   const texelsInBatch = texelsInLogicalRow *
@@ -1474,6 +1494,13 @@ function getOutput4DCoords(
 
 function getPackedOutputSamplingSnippet(
     outShape: number[], outTexShape: [number, number]): string {
+  // TODO(texture): should handle squeeze here?
+  /*
+  if (outShape.length == 3 && outShape[0] == 1)
+    return getOutputPacked3DCoords(outShape as [number, number, number],
+  outTexShape);
+  */
+
   switch (outShape.length) {
     case 0:
       // return getOutputScalarCoords();

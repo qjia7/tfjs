@@ -35,13 +35,14 @@ export class BinaryOpVec4Program implements WebGPUProgram {
   workPerThread = 4;
   workGroupSize: [number, number, number];
   isVec4 = true;
-  isTextureRGBA32f = true;
 
-  constructor(op: string, aShape: number[], bShape: number[]) {
+  constructor(
+      op: string, aShape: number[], bShape: number[],
+      usePackedTexture = false) {
     // TODO(jiajia.qin@intel.com): Heuristically select a good work group size.
     const workGroupSizeX = 32;
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
-    if (this.isTextureRGBA32f == false) {
+    if (usePackedTexture == false) {
       this.workGroupSize = [workGroupSizeX, 1, 1];
       this.dispatchLayout = flatDispatchLayout(this.outputShape);
       this.dispatch = computeDispatch(
@@ -58,9 +59,16 @@ export class BinaryOpVec4Program implements WebGPUProgram {
     const size = util.sizeFromShape(this.outputShape) / this.workPerThread;
     const fitShape = false;  // = size % workGroupSizeX === 0;
 
-    console.log(
-        ' this.outputShape =' + this.outputShape + ', this.dispatch =' +
-        this.dispatch + ', this.dispatchLayout=' + this.dispatchLayout);
+    let sampleA, sampleB, sampleResult;
+    if (usePackedTexture) {
+      sampleA = `vec4 a = getAAtOutCoords()`;
+      sampleB = `vec4 b = getBAtOutCoords()`;
+      sampleResult = `setOutput(binaryOperation(a, b))`;
+    } else {
+      sampleA = `vec4 a = A[index]`;
+      sampleB = `vec4 b = B[index]`;
+      sampleResult = `setOutput(index, binaryOperation(a, b))`;
+    }
 
     if (fitShape) {
       this.userCode = `
@@ -70,13 +78,9 @@ export class BinaryOpVec4Program implements WebGPUProgram {
 
       void main() {
         int index = int(gl_GlobalInvocationID.x);
-		    /*
-        vec4 a = A[index];
-        vec4 b = B[index];
-        */
-        vec4 a = getAAtOutCoords();
-        vec4 b = getBAtOutCoords();
-        setOutput(binaryOperation(a, b));
+        ${sampleA};
+        ${sampleB};
+        ${sampleResult};
       }
     `;
     } else {
@@ -89,13 +93,9 @@ export class BinaryOpVec4Program implements WebGPUProgram {
         int index = int(gl_GlobalInvocationID.x);
         // TODO(tetxure): if (index < ${size})
         {
-          /*
-          vec4 a = A[index];
-          vec4 b = B[index];
-          */
-          vec4 a = getAAtOutCoords();
-          vec4 b = getBAtOutCoords();
-          setOutput(binaryOperation(a, b));
+          ${sampleA};
+          ${sampleB};
+          ${sampleResult};
         }
       }
     `;

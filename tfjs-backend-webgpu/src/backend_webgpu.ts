@@ -132,6 +132,8 @@ export class WebGPUBackend extends KernelBackend {
   private downloadWaitMs = 0;
   private useTexture = true;
   private format: GPUTextureFormat = 'rgba32float';
+  private usePackedTexture =
+      (this.useTexture && this.format == 'rgba32float') ? true : false;
   private cpuBackend: KernelBackend;
 
   constructor(device: GPUDevice, glslang: Glslang) {
@@ -537,9 +539,8 @@ export class WebGPUBackend extends KernelBackend {
         this.uploadToGPU(input.dataId);
       }
       // TODO(texture): move this into texture only path.
-      const useVec4 = this.format == 'rgba32float' ? true : false;
       const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
-          input.shape, useVec4);
+          input.shape, this.usePackedTexture);
       const shapeInfo: ShapeInfo = {
         dtype: this.tensorMap.get(input.dataId).dtype,
         logicalShape: input.shape,
@@ -562,9 +563,8 @@ export class WebGPUBackend extends KernelBackend {
     var outShapeInfo: ShapeInfo;
     if (this.useTexture) {
       this.uploadTextureToGPU(output.dataId);
-      const useVec4 = this.format == 'rgba32float' ? true : false;
       const texShape = webgpu_texture_util.getTextureShapeFromLogicalShape(
-          output.shape, useVec4);
+          output.shape, this.usePackedTexture);
       outShapeInfo = {
         dtype: this.tensorMap.get(output.dataId).dtype,
         logicalShape: output.shape,
@@ -582,7 +582,7 @@ export class WebGPUBackend extends KernelBackend {
     const key =
         webgpu_program.makeShaderKey(program, bufferShapes, bufferTypes);
     const {bindGroupLayout, pipeline} = this.getAndSavePipeline(key, () => {
-      if (this.useTexture)
+      if (this.useTexture) {
         return webgpu_program.compileProgramTexture(
             this.glslang,
             this.device,
@@ -591,9 +591,10 @@ export class WebGPUBackend extends KernelBackend {
             inputsData,
             outShapeInfo,
         );
-      else
+      } else {
         return webgpu_program.compileProgram(
             this.glslang, this.device, program, inputsData, output);
+      }
     });
 
     const shouldTimeProgram = this.activeTimers != null;
@@ -723,8 +724,8 @@ export class WebGPUBackend extends KernelBackend {
 
   private binaryOp(a: Tensor, b: Tensor, op: BinaryOpType, boolType?: boolean):
       Tensor {
-    const useVec4 = this.format == 'rgba32float' ? true : false;
-    const program = getBinaryProgram(op, a.shape, b.shape, useVec4);
+    const program =
+        getBinaryProgram(op, a.shape, b.shape, this.usePackedTexture);
 
     if (boolType) {
       const dataId = this.write(null /*values*/, program.outputShape, 'bool');
@@ -1326,7 +1327,8 @@ export class WebGPUBackend extends KernelBackend {
       // this limitation by insert 0 to pack data.
       program = new MatMulPackedVec4Program(
           a.shape, output.shape as [number, number, number],
-          env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number);
+          env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number,
+          this.usePackedTexture);
     } else {
       program = new MatMulPackedProgram(
           a.shape, output.shape as [number, number, number],

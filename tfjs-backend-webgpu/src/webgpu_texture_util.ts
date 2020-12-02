@@ -182,6 +182,7 @@ export function getPackedMatrixTextureShapeWidthHeight(
 
 export function getTextureShapeFromLogicalShape(
     logShape: number[], isPacked = false): [number, number] {
+  // TODO(texture): Change WEBGL_MAX_TEXTURE_SIZE to WEBGPU_MAX_TEXTURE_SIZE.
   let maxTexSize = env().getNumber('WEBGL_MAX_TEXTURE_SIZE');
   if (isPacked) {
     maxTexSize = maxTexSize * 2;
@@ -238,6 +239,7 @@ export function getTextureShapeFromLogicalShape(
       logShape[1] * logShape[2] * logShape[3] <= maxTexSize) {
     return [logShape[0], logShape[1] * logShape[2] * logShape[3]];
   } else {
+    console.error('TODO(texture) other dimensions are not supported!');
     if (isPacked) {
       // For packed textures size equals the number of channels required to
       // accommodate the texture data. However in order to squarify such that
@@ -257,7 +259,6 @@ export function getTextureShapeFromLogicalShape(
   }
 }
 
-// TODO(txture): this cal also be done by getTextureShapeFromLogicalShape.
 export function getDispatchLayoutFromLogicalShape(
     logShape: number[], isPacked = false): {y?: number[], x: number[]} {
   let maxTexSize = env().getNumber('WEBGL_MAX_TEXTURE_SIZE');
@@ -317,13 +318,13 @@ export function getDispatchLayoutFromLogicalShape(
       logShape[1] * logShape[2] * logShape[3] <= maxTexSize) {
     return {y: [0], x: [1, 2, 3]};
   } else {
+    console.error('TODO(texture) other dimensions are not supported!');
     if (isPacked) {
       // For packed textures size equals the number of channels required to
       // accommodate the texture data. However in order to squarify such that
       // inner dimensions stay even, we rewrite size to equal the number of
       // texels. Then in the return statement we rehydrate the squarified
       // dimensions to channel units.
-      console.error('TODO(texture) not supported!');
 
       const batchDim = getBatchDim(logShape);
       let rows = 2, cols = 2;
@@ -335,7 +336,6 @@ export function getDispatchLayoutFromLogicalShape(
       // number];
     }
     // return util.sizeToSquarishShape(size);
-    console.error('TODO(texture) not supported!');
     return {y: [0], x: [1]};
   }
 }

@@ -40,8 +40,8 @@ export class BinaryOpProgram implements WebGPUProgram {
     this.outputShape = backend_util.assertAndGetBroadcastShape(aShape, bShape);
     this.dispatchLayout = flatDispatchLayout(this.outputShape);
     const size = util.sizeFromShape(this.outputShape);
-    const sizeFit = false;// size % workGroupSizeX === 0;
-    const shapesFit = false;// util.arraysEqual(aShape, bShape) && sizeFit;
+    const sizeFit = false;    // size % workGroupSizeX === 0;
+    const shapesFit = false;  // util.arraysEqual(aShape, bShape) && sizeFit;
     this.workPerThread = shapesFit || sizeFit ? 1 : 2;
 
     this.dispatch = computeDispatch(
@@ -105,8 +105,10 @@ export class BinaryOpProgram implements WebGPUProgram {
             ${type} coords = getCoordsFromFlatIndex(flatIndex);
             float a = getAAtOutCoords(coords);
             float b = getBAtOutCoords(coords);
-            // setOutput(flatIndex, binaryOperation(a, b));// this works too.
-            setOutput(${dims}, binaryOperation(a, b));
+            // TODO(texture): This works too.
+            setOutput(flatIndex, binaryOperation(a, b));
+            // TODO(texture): This may fail buffer vec4.
+            // setOutput(${dims}, binaryOperation(a, b));
           }
         }
       }
