@@ -35,8 +35,9 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
   isVec4 = true;
 
   constructor(
-      convInfo: backend_util.Conv2DInfo, addBias = false,
-      activation: string = null, hasPreluActivationWeights = false) {
+      convInfo: backend_util.Conv2DInfo, usePackedTexture = false,
+      addBias = false, activation: string = null,
+      hasPreluActivationWeights = false) {
     this.outputShape = convInfo.outShape;
 
     util.assert(
@@ -58,22 +59,51 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     const dimInner =
         convInfo.filterHeight * convInfo.filterWidth * convInfo.inChannels;
     const fitA = tilesFitEvenlyIntoShape(tileSizeA, [dimAOuter, dimInner]);
-    const sampleA = fitA ?
-        `x[getFlatIndex(coord, ${getShapeCoords(convInfo.inShape)}) / 4]` :
-        `coordsInBounds(coord, ${
-            getShapeCoords(convInfo.inShape)}) ? x[getFlatIndex(coord, ${
-            getShapeCoords(convInfo.inShape)}) / 4] : vec4(0.0, 0.0, 0.0, 0.0)`;
-    const fitB = tilesFitEvenlyIntoShape(tileSizeB, [dimInner, dimBOuter]);
-    const sampleB = fitB ?
-        `W[row * dimBOuter + col]` :
-        `coordsInBounds(ivec2(row, col), ivec2(dimInner * 4, dimBOuter)) ?
-        W[row * dimBOuter + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
 
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         elementsPerThread);
     const batchSize =
         this.outputShape[1] * this.outputShape[2] * this.outputShape[3] / 4;
+
+    const glslZERO = 'vec4(0.0, 0.0, 0.0, 0.0)';
+    const vecSize = 4;
+    let sampleA;
+    if (usePackedTexture) {
+      sampleA = fitA ?
+          `getX(coord[0],coord[1], coord[2], coord[3])` :
+          `coordsInBounds(coord, ${
+              getShapeCoords(
+                  convInfo
+                      .inShape)}) ? getX(coord[0],coord[1], coord[2], coord[3]) : ${
+              glslZERO}`;
+    } else {
+      sampleA = fitA ?
+          `x[getFlatIndex(coord, ${getShapeCoords(convInfo.inShape)}) / 4]` :
+          `coordsInBounds(coord, ${
+              getShapeCoords(convInfo.inShape)}) ? x[getFlatIndex(coord, ${
+              getShapeCoords(convInfo.inShape)}) / 4] : ${glslZERO}`;
+    }
+    const fitB = tilesFitEvenlyIntoShape(tileSizeB, [dimInner, dimBOuter]);
+    let sampleB;
+    if (usePackedTexture) {
+      sampleB = fitB ?
+          `imageLoad(W, ivec2(col * ${vecSize}, row))` :
+          `coordsInBounds(ivec2(row, col), ivec2(dimInner * 4, dimBOuter)) ?
+          imageLoad(W, ivec2(col * ${vecSize}, row)) : ${glslZERO}`;
+    } else {
+      sampleB = fitB ?
+          `W[row * dimBOuter + col]` :
+          `coordsInBounds(ivec2(row, col), ivec2(dimInner * 4, dimBOuter)) ?
+          W[row * dimBOuter + col] : ${glslZERO}`;
+    }
+    let sampleResult;
+    if (usePackedTexture) {
+      sampleResult = `setOutput(batch, row, col * ${vecSize}, value)`;
+    } else {
+      sampleResult =
+          `result[batch * ${batchSize} + row * dimBOuter + col] = value`;
+    }
 
     // TODO(jiajia.qin@intel.com): Add the fused conv2d vec4 support.
     this.userCode = `
@@ -107,7 +137,7 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
         void mm_write(int row, int col, vec4 value) {
           if (row < dimAOuter && col < dimBOuter)
           {
-            result[batch * ${batchSize} + row * dimBOuter + col] = value;
+            ${sampleResult};
           }
         }
 

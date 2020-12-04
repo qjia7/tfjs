@@ -330,9 +330,8 @@ function getSetOutputSnippet(
     void setOutput(int flatIndex, int value) {
       /*
       result[flatIndex] = ${
-        glslType === 'float' ?
-            'float(value)' :
-            (glslType === 'bool' ? 'bool(value)' : 'value')};
+        glslType === 'float' ? 'float(value)' :
+                               (glslType === 'bool' ? 'bool(value)' : 'value')};
       */
     }`;
   }
@@ -1000,8 +999,7 @@ function getPackedSampler3D(inputInfo: InputInfo): string {
   return `
     vec4 ${funcName}(int b, int row, int col) {
       ivec2 uv = packedUVfrom3D(
-        ${texNumR}, ${texNumC}, ${texelsInBatch}, ${
-      valuesPerRow}, b, row, col);
+        ${texNumR}, ${texNumC}, ${texelsInBatch}, ${valuesPerRow}, b, row, col);
       return imageLoad(${texName}, uv);
     }
   `;
@@ -1206,8 +1204,7 @@ export function setPackedSampler3D(
 
     void setOutput(int b, int row, int col, vec4 value) {
       vec2 uv = packedUVfrom3D(
-        ${texNumR}, ${texNumC}, ${texelsInBatch}, ${
-      valuesPerRow}, b, row, col);
+        ${texNumR}, ${texNumC}, ${texelsInBatch}, ${valuesPerRow}, b, row, col);
       imageStore(result, ivec2(uv.x,uv.y), value);
     }
 
@@ -1222,7 +1219,7 @@ export function setPackedSamplerND(
     Math.ceil(texShape[0] / PACKED_RGBA_HEIGHT),
     Math.ceil(texShape[1] / PACKED_RGBA_WIDTH)
   ];
-
+  const texNumR = packedTexShape[0];
   const texNumC = packedTexShape[1];
 
   const valuesPerRow = Math.ceil(shape[rank - 1] / PACKED_RGBA_WIDTH);
@@ -1243,6 +1240,14 @@ export function setPackedSamplerND(
       int texC = index - texR * ${texNumC};
       imageStore(result, ivec2(texC, texR), value);
     }
+
+    // TODO(texture): Workaround for conv2d.
+    void setOutput(int b, int row, int col, vec4 value) {
+      vec2 uv = packedUVfrom3D(
+        ${texNumR}, ${texNumC}, ${texelsInBatch}, ${valuesPerRow}, b, row, col);
+      imageStore(result, ivec2(uv.x,uv.y), value);
+    }
+
     // TODO(texture): remove this.
     void setOutput(vec4 value) {
       ivec4 coords = getOutputCoords();

@@ -869,8 +869,8 @@ export class WebGPUBackend extends KernelBackend {
         // 128, 128, 4], filter = [25, 25, 4, 4]. In this case, lots of theads
         // will run idle. So temporarily, use 64 as the threshold.
         convInfo.inChannels % 4 === 0 && convInfo.outChannels % 4 === 0 &&
-        convInfo.outChannels >= 64) {
-      program = new Conv2DMMVec4Program(convInfo);
+        convInfo.outChannels >= 4) {
+      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     } else {
       program = new Conv2DMMProgram(
           convInfo, workPerThread, false, null, false, this.useTexture);
@@ -939,7 +939,7 @@ export class WebGPUBackend extends KernelBackend {
     } else {
       program = new Conv2DMMProgram(
           convInfo, workPerThread, hasBias, fusedActivation,
-          hasPreluActivationWeights);
+          hasPreluActivationWeights, this.useTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];

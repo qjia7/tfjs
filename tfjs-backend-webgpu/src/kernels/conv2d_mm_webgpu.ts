@@ -37,7 +37,7 @@ export class Conv2DMMProgram implements WebGPUProgram {
   constructor(
       convInfo: backend_util.Conv2DInfo, workPerThread: number, addBias = false,
       activation: string = null, hasPreluActivationWeights = false,
-      useTexture = true) {
+      useTexture = false) {
     this.outputShape = convInfo.outShape;
 
     util.assert(
@@ -179,6 +179,5 @@ export class Conv2DMMProgram implements WebGPUProgram {
     this.shaderKey = `conv2dmm'${elementsPerThread.join('')}${fitA}${fitB}${
         addBiasSnippet}${activationSnippet}${convInfo.inShape}${
         convInfo.outShape}${convInfo.filterShape}`;
-    console.log(this.shaderKey);
   }
 }

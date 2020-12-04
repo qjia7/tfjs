@@ -28,6 +28,80 @@ function createFloat32Array(w: number, h: number) {
   }
   return matrix;
 }
+describeWebGPU('webgputextureconv2dvec4', () => {
+  it('rgba32fconv4d1884', async () => {
+    const inputDepth = 4;
+    const xSize = 8;
+    const inputShape: [number, number, number, number] =
+        [1, xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor4d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    console.log(result.shape);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      140, 175, 175, 140, 140, 73,  146, 184, 175, 176, 142, 73,  46,
+      94,  117, 125, 70,  144, 183, 187, 175, 142, 74,  146, 140, 175,
+      175, 140, 98,  47,  96,  125, 140, 73,  146, 184, 175, 176, 142,
+      73,  70,  144, 183, 187, 125, 100, 50,  100, 124, 98,  47,  96,
+      96,  117, 113, 84,  98,  46,  94,  117, 84,  87,  60,  33
+    ]);
+  });
+
+  it('rgba32fconv4d884', async () => {
+    const inputDepth = 4;
+    const xSize = 8;
+    const inputShape: [number, number, number] = [xSize, xSize, inputDepth];
+    const outputDepth = 4;
+    const fSize = 3;
+    const pad = 'same';
+    const stride: [number, number] = [2, 2];
+
+    // TODO(annxingyuan): Make this test work with large inputs using
+    // generateCaseInputs https://github.com/tensorflow/tfjs/issues/3143
+    const inputData = [];
+    for (let i = 0; i < xSize * xSize * inputDepth; i++) {
+      inputData.push(i % 5);
+    }
+
+    const wData = [];
+    for (let i = 0; i < fSize * fSize * inputDepth * outputDepth; i++) {
+      wData.push(i % 5);
+    }
+
+    const x = tf.tensor3d(inputData, inputShape);
+    const w = tf.tensor4d(wData, [fSize, fSize, inputDepth, outputDepth]);
+
+    const result = tf.conv2d(x, w, stride, pad);
+    console.log(result.shape);
+    console.log(await result.data());
+    expectArraysClose(await result.data(), [
+      140, 175, 175, 140, 140, 73,  146, 184, 175, 176, 142, 73,  46,
+      94,  117, 125, 70,  144, 183, 187, 175, 142, 74,  146, 140, 175,
+      175, 140, 98,  47,  96,  125, 140, 73,  146, 184, 175, 176, 142,
+      73,  70,  144, 183, 187, 125, 100, 50,  100, 124, 98,  47,  96,
+      96,  117, 113, 84,  98,  46,  94,  117, 84,  87,  60,  33
+    ]);
+  });
+});
 
 describeWebGPU('webgputexturematmul', () => {
   it('rgba32fmatmul3d444', async () => {
