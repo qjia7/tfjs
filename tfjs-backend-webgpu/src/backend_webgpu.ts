@@ -863,17 +863,8 @@ export class WebGPUBackend extends KernelBackend {
     if (workPerThread === -1) {
       // TODO(kainino0x): This may be obsolete, but is kept for reference.
       program = new Conv2DNaiveProgram(convInfo);
-    } else if (
-        // TODO(jiajia.qin@intel.com): It seems that the vec4 version is not
-        // good if convInfo.outChannels is too small. For example, input = [1,
-        // 128, 128, 4], filter = [25, 25, 4, 4]. In this case, lots of theads
-        // will run idle. So temporarily, use 64 as the threshold.
-        convInfo.inChannels % 4 === 0 && convInfo.outChannels % 4 === 0 &&
-        convInfo.outChannels >= 4) {
-      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     } else {
-      program = new Conv2DMMProgram(
-          convInfo, workPerThread, false, null, false, this.useTexture);
+      program = new Conv2DMMVec4Program(convInfo, this.usePackedTexture);
     }
 
     const pad = [convInfo.padInfo.top, convInfo.padInfo.left];
