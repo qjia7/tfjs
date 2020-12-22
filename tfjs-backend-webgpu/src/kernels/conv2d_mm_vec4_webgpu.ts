@@ -173,9 +173,9 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
     let sampleB;
     if (usePackedTexture) {
       sampleB = fitB ?
-          `imageLoad(W, ivec2(col * ${vecSize}, row))` :
+          `getW(index)` :
           `coordsInBounds(ivec2(row, col * 4), ivec2(dimInner, dimBOuter)) ?
-          imageLoad(W, ivec2(col * ${vecSize}, row)) : ${glslZERO}`;
+          getW(index) : ${glslZERO}`;
     } else {
       sampleB = fitB ?
           `W[row * dimBOuter + col]` :
@@ -326,27 +326,25 @@ export class Conv2DMMVec4Program implements WebGPUProgram {
 
             if (c < (dimInner - 3))
             {
-               return resData;
             }
             else if (c < (dimInner - 2))
             {
               resData = vec4(resData.xyz, 0);
-              return resData;
             } else if (c < (dimInner - 1))
             {
               resData = vec4(resData.xy, 0, 0);
-              return resData;
-            } else
+            } else if (c < dimInner)
             {
               resData = vec4(resData.x, 0, 0, 0);
-              return resData;
             }
+            return resData;
           } else {
             return vec4(0, 0, 0, 0);
           }
         }
 
         vec4 mm_readB(int row, int col) {
+          int index = row * dimBOuter + col * 4;
           return ${sampleB};
         }
 

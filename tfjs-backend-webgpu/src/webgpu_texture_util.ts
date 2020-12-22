@@ -209,10 +209,10 @@ export function getTextureShapeFromLogicalShape(
   }
 
   // If logical shape is 2, we don't squeeze, since we want to match physical.
-  if (logShape.length !== 2) {
-    const squeezeResult = util.squeezeShape(logShape);
-    logShape = squeezeResult.newShape;
-  }
+ // if (logShape.length !== 2) {
+ //   const squeezeResult = util.squeezeShape(logShape);
+ //   logShape = squeezeResult.newShape;
+ // }
 
   let size = util.sizeFromShape(logShape);
   if (logShape.length <= 1 && size <= maxTexSize) {
