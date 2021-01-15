@@ -121,20 +121,18 @@ export function makeMatMulPackedSource(workPerThread: number[]): string {
 export class MatMulPackedProgram implements WebGPUProgram {
   outputShape: number[];
   shaderKey: string;
-  userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
   workPerThread: number;
   variableNames = ['A', 'B'];
   workGroupSize: [number, number, number] = [16, 16, 1];
+  aShape: [number, number, number];
+  transposeA: boolean;
+  transposeB: boolean;
 
   constructor(
       aShape: [number, number, number], outputShape: [number, number, number],
       workPerThread: number, transposeA = false, transposeB = false) {
-    const dimInner = transposeA ? aShape[1] : aShape[2];
-    const dimBOuter = outputShape[2];
-    const bShape = transposeB ? [outputShape[0], dimBOuter, dimInner] :
-                                [outputShape[0], dimInner, dimBOuter];
     this.outputShape = outputShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0]};
     this.dispatch = computeDispatch(
@@ -152,8 +150,22 @@ export class MatMulPackedProgram implements WebGPUProgram {
           [workPerThread, workPerThread, 1]);
     }
     this.workPerThread = workPerThread;
-    const tileAOuter = this.workGroupSize[1] * workPerThread;
-    const tileBOuter = this.workGroupSize[0] * workPerThread;
+    this.aShape = aShape;
+    this.transposeA = transposeA;
+    this.transposeB = transposeB;
+    this.shaderKey =
+        `matmulpacked${this.workPerThread}${transposeA}${transposeB}`;
+  }
+
+  getUserCode(): string {
+    const dimInner = this.transposeA ? this.aShape[1] : this.aShape[2];
+    const dimBOuter = this.outputShape[2];
+    const bShape = this.transposeB ?
+        [this.outputShape[0], dimBOuter, dimInner] :
+        [this.outputShape[0], dimInner, dimBOuter];
+
+    const tileAOuter = this.workGroupSize[1] * this.workPerThread;
+    const tileBOuter = this.workGroupSize[0] * this.workPerThread;
     const tileInner = tileAOuter > tileBOuter ? tileAOuter : tileBOuter;
     util.assert(
         tileInner % this.workGroupSize[0] === 0 &&
@@ -162,12 +174,12 @@ export class MatMulPackedProgram implements WebGPUProgram {
             `and workgroupsize.y`);
     const tileSizeA = [tileAOuter, tileInner];
     const tileSizeB = [tileInner, tileBOuter];
-    const fitA = tilesFitEvenlyIntoShape(tileSizeA, aShape.slice(1));
-    const batchASize = aShape[1] * aShape[2];
+    const fitA = tilesFitEvenlyIntoShape(tileSizeA, this.aShape.slice(1));
+    const batchASize = this.aShape[1] * this.aShape[2];
     const batchBSize = bShape[1] * bShape[2];
     let sampleA;
 
-    if (transposeA === false) {
+    if (this.transposeA === false) {
       sampleA = fitA ?
           `A[batch * ${batchASize} + row * dimInner + col]` :
           `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
@@ -181,7 +193,7 @@ export class MatMulPackedProgram implements WebGPUProgram {
 
     const fitB = tilesFitEvenlyIntoShape(tileSizeB, bShape.slice(1));
     let sampleB;
-    if (transposeB === false) {
+    if (this.transposeB === false) {
       sampleB = fitB ?
           `B[batch * ${batchBSize} + row * dimBOuter + col]` :
           `coordsInBounds(ivec2(row, col), ivec2(dimInner, dimBOuter)) ?
@@ -193,14 +205,17 @@ export class MatMulPackedProgram implements WebGPUProgram {
             B[batch * ${batchBSize} + col * dimInner + row] : 0`;
     }
 
-    this.userCode = `
-      int dimAOuter = ${transposeA === true ? `${aShape[2]}` : `${aShape[1]}`};
-      int dimInner = ${transposeA === true ? `${aShape[1]}` : `${aShape[2]}`};
-      int dimBOuter = ${transposeB === true ? `${bShape[1]}` : `${bShape[2]}`};
+    const userCode = `
+      int dimAOuter = ${
+        this.transposeA === true ? `${this.aShape[2]}` : `${this.aShape[1]}`};
+      int dimInner = ${
+        this.transposeA === true ? `${this.aShape[1]}` : `${this.aShape[2]}`};
+      int dimBOuter = ${
+        this.transposeB === true ? `${bShape[1]}` : `${bShape[2]}`};
       int batch;
 
       ${makeMatMulPackedSource([
-      workPerThread, workPerThread, 1
+      this.workPerThread, this.workPerThread, 1
     ])}
       float mm_readA(int row, int col) {
         return ${sampleA};
@@ -219,7 +234,6 @@ export class MatMulPackedProgram implements WebGPUProgram {
         mm_matMul(dimAOuter, dimInner, dimBOuter);
       }
     `;
-    this.shaderKey = `matmulpacked${this.workPerThread}${fitA}${fitB}${
-        transposeA}${transposeB}`;
+    return userCode;
   }
 }

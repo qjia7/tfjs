@@ -109,38 +109,43 @@ export function makeMatMulPackedVec4Source(workPerThread: number[]): string {
 export class MatMulPackedVec4Program implements WebGPUProgram {
   outputShape: number[];
   shaderKey: string;
-  userCode: string;
   dispatchLayout: {x: number[], y: number[], z: number[]};
   dispatch: [number, number, number];
   workPerThread: number;
   variableNames = ['A', 'B'];
   workGroupSize: [number, number, number] = [16, 16, 1];  // x, y must be equal.
   isVec4 = true;
+  aShape: [number, number, number];
 
   constructor(
       aShape: [number, number, number], outputShape: [number, number, number],
       workPerThread: number) {
-    const dimInner = aShape[2];
-    const dimBOuter = outputShape[2];
-    const bShape = [outputShape[0], dimInner, dimBOuter];
     this.outputShape = outputShape;
     this.dispatchLayout = {x: [2], y: [1], z: [0]};
     const vecSize = 4;
     this.dispatch = computeDispatch(
         this.dispatchLayout, this.outputShape, this.workGroupSize,
         [vecSize, workPerThread, 1]);
-
     this.workPerThread = workPerThread;
-    const tileAOuter = this.workGroupSize[1] * workPerThread;
+    this.aShape = aShape;
+    this.shaderKey = `matmulpackedVec4`;
+  }
+
+  getUserCode(): string {
+    const dimInner = this.aShape[2];
+    const dimBOuter = this.outputShape[2];
+    const bShape = [this.outputShape[0], dimInner, dimBOuter];
+    const vecSize = 4;
+    const tileAOuter = this.workGroupSize[1] * this.workPerThread;
     const tileBOuter = this.workGroupSize[0] * vecSize;
     const tileInner = tileBOuter;  // Make sure tileInner is divisible by 4.
 
     const tileSizeA = [tileAOuter, tileInner];
     const tileSizeB = [tileInner, tileBOuter];
-    const fitA = tilesFitEvenlyIntoShape(tileSizeA, aShape.slice(1));
-    const batchASize = aShape[1] * aShape[2] / vecSize;
+    const fitA = tilesFitEvenlyIntoShape(tileSizeA, this.aShape.slice(1));
+    const batchASize = this.aShape[1] * this.aShape[2] / vecSize;
     const batchBSize = bShape[1] * bShape[2] / vecSize;
-    const batchSize = outputShape[1] * outputShape[2] / vecSize;
+    const batchSize = this.outputShape[1] * this.outputShape[2] / vecSize;
     const sampleA = fitA ?
         `A[batch * ${batchASize} + row * dimInner + col]` :
         `coordsInBounds(ivec2(row, col), ivec2(dimAOuter, dimInner)) ?
@@ -154,14 +159,14 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
             B[batch * ${
             batchBSize} + row * dimBOuter + col] : vec4(0.0, 0.0, 0.0, 0.0)`;
 
-    this.userCode = `
-      int dimAOuter = ${aShape[1]};
-      int dimInner = ${aShape[2] / vecSize};
+    const userCode = `
+      int dimAOuter = ${this.aShape[1]};
+      int dimInner = ${this.aShape[2] / vecSize};
       int dimBOuter = ${bShape[2] / vecSize};
       int batch;
 
       ${makeMatMulPackedVec4Source([
-      vecSize, workPerThread, 1
+      vecSize, this.workPerThread, 1
     ])}
 
       vec4 mm_readA(int row, int col) {
@@ -184,5 +189,6 @@ export class MatMulPackedVec4Program implements WebGPUProgram {
         mm_matMul(dimAOuter, dimInner, dimBOuter);
       }
     `;
+    return userCode;
   }
 }
