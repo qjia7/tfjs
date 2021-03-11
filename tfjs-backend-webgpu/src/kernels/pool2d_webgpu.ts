@@ -61,7 +61,7 @@ export class Pool2DProgram implements WebGPUProgram {
 
     const userCode = `
       float getValue(int batch, int xR, int xC, int d) {
-        if (xC < 0 || xC >= convDims.x) {
+        if (xC < 0 || xC >= convDims.y) {
           return 0.0;
         }
         return getX(batch, xR, xC, d);
@@ -83,15 +83,15 @@ export class Pool2DProgram implements WebGPUProgram {
             count[i] = 0.0;
           }
 
-          for (int wR = 0; wR < filterDims.y; wR += dilation.y) {
+          for (int wR = 0; wR < filterDims.x; wR += dilation.x) {
             int xR = xRCorner + wR;
 
-            if (xR < 0 || xR >= convDims.y) {
+            if (xR < 0 || xR >= convDims.x) {
               continue;
             }
 
-            for (int wC = 0; wC < filterDims.x; wC += dilation.x) {
-              int xC = xCCorner + wC * dilation.x;
+            for (int wC = 0; wC < filterDims.y; wC += dilation.y) {
+              int xC = xCCorner + wC * dilation.y;
               for (int i = 0; i < ${this.workPerThread}; i++)
               {
                 int d = coords[3] * ${this.workPerThread} + i;

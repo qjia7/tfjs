@@ -43,12 +43,12 @@ export function maxPool(
   }
 
   const dimensions = [
-    convInfo.padInfo.left, convInfo.padInfo.top,      // Padding.
-    convInfo.strideWidth, convInfo.strideHeight,      // Stride.
-    convInfo.dilationWidth, convInfo.dilationHeight,  // Dilation.
-    convInfo.inWidth, convInfo.inHeight,              // Conv dims.
-    convInfo.effectiveFilterWidth,
-    convInfo.effectiveFilterHeight  // Filter dims.
+    convInfo.padInfo.top, convInfo.padInfo.left,      // Padding.
+    convInfo.strideHeight, convInfo.strideWidth,      // Stride.
+    convInfo.dilationHeight, convInfo.dilationWidth,  // Dilation.
+    convInfo.inHeight, convInfo.inWidth,              // Conv dims.
+    convInfo.effectiveFilterHeight,
+    convInfo.effectiveFilterWidth  // Filter dims.
   ];
   const uniformData = new Int32Array(dimensions);
   return backend.runWebGPUProgram(program, [x], x.dtype, uniformData);
