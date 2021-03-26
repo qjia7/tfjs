@@ -21,6 +21,7 @@ import {WebGPUBackend} from '../backend_webgpu';
 
 import {MatMulPackedVec4Program} from './matmul_packed_vec4_webgpu';
 import {MatMulPackedProgram} from './matmul_packed_webgpu';
+import {MatMulVectorProgram} from './matmul_vector_v1_webgpu';
 import {reshape} from './Reshape';
 
 type BatchMatMulConfig = {
@@ -102,8 +103,13 @@ export function batchMatMulImpl({
   const fusedActivation = activation ?
       backend.mapActivationToShaderProgram(activation, useVec4) :
       null;
-  let program: MatMulPackedProgram|MatMulPackedVec4Program;
-  if (useVec4) {
+  let program: MatMulPackedProgram|MatMulPackedVec4Program|MatMulVectorProgram;
+  if (outerShapeA === 1 && batchDim === 1 && !transposeA && !transposeB) {
+    program = new MatMulVectorProgram(
+        a3dShape, [batchDim, outerShapeA, outerShapeB],
+        env().get('WEBGPU_MATMUL_WORK_PER_THREAD') as number, hasBias,
+        fusedActivation, hasPreluActivationWeights);
+  } else if (useVec4) {
     // TODO: Currently we need to make sure that a.shape[2] and b.shape[2]
     // are divisible by 4 since we use vec4 to get data. In future, we can
     // remove this limitation by insert 0 to pack data.
